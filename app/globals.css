@@ -1,10 +1,14 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 @layer utilities {
   .neon-text-blue {
     text-shadow: 0 0 5px rgba(0, 212, 255, 0.5), 0 0 10px rgba(0, 212, 255, 0.5);
   }
+
   .neon-border-blue {
-    box-shadow: 0 0 5px rgba(0, 212, 255, 0.3), inset 0 0 5px rgba(0, 212, 255, 0.3);
+    box-shadow: 0 0 5px rgba(0, 212, 255, 0.3),
+      inset 0 0 5px rgba(0, 212, 255, 0.3);
   }
 }
