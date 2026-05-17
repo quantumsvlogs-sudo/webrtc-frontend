@@ -28,14 +28,12 @@ wss.on("connection", (ws) => {
     try {
       const data = JSON.parse(message.toString());
 
-      // JOIN ROOM
       if (data.type === "join") {
         currentRoom = data.room;
         currentUser = data.user;
 
         const room = getRoom(currentRoom);
 
-        // limit to 2 peers
         if (room.length >= 2) {
           ws.send(
             JSON.stringify({
@@ -51,7 +49,6 @@ wss.on("connection", (ws) => {
           user: currentUser,
         });
 
-        // assign roles
         if (room.length === 1) {
           ws.send(
             JSON.stringify({
@@ -80,7 +77,6 @@ wss.on("connection", (ws) => {
         return;
       }
 
-      // OFFER
       if (data.type === "offer") {
         const room = getRoom(currentRoom);
 
@@ -92,7 +88,6 @@ wss.on("connection", (ws) => {
         return;
       }
 
-      // ANSWER
       if (data.type === "answer") {
         const room = getRoom(currentRoom);
 
@@ -104,7 +99,6 @@ wss.on("connection", (ws) => {
         return;
       }
 
-      // ICE CANDIDATE
       if (data.type === "candidate") {
         const room = getRoom(currentRoom);
 
@@ -124,7 +118,6 @@ wss.on("connection", (ws) => {
     if (!currentRoom) return;
 
     const room = getRoom(currentRoom);
-
     const updated = room.filter((client) => client.ws !== ws);
 
     if (updated.length === 0) {
