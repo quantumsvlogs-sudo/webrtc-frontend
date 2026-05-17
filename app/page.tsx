@@ -12,7 +12,6 @@ const joinRoom = async () => {
     return;
   }
   
-
   setAppState("CONNECTING_SIGNALING");
 
   // cleanup old sockets
