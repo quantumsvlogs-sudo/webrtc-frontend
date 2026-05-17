@@ -22,19 +22,16 @@ function cn(...inputs: (string | undefined | null | false)[]) {
 const iceServers = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
-
   {
     urls: "turn:openrelay.metered.ca:80",
     username: "openrelayproject",
     credential: "openrelayproject",
   },
-
   {
     urls: "turn:openrelay.metered.ca:443",
     username: "openrelayproject",
     credential: "openrelayproject",
   },
-
   {
     urls: "turn:openrelay.metered.ca:443?transport=tcp",
     username: "openrelayproject",
@@ -56,7 +53,6 @@ type AppState =
 export default function Home() {
   const [roomId, setRoomId] = useState("");
   const [appState, setAppState] = useState<AppState>("IDLE");
-
   const [micEnabled, setMicEnabled] = useState(true);
   const [videoEnabled, setVideoEnabled] = useState(true);
 
@@ -65,7 +61,6 @@ export default function Home() {
 
   const wsRef = useRef<WebSocket | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
-
   const localStreamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
@@ -83,7 +78,6 @@ export default function Home() {
           height: { ideal: 720 },
           facingMode: "user",
         },
-
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
@@ -99,9 +93,7 @@ export default function Home() {
       return stream;
     } catch (err: any) {
       console.error("MEDIA ERROR:", err);
-
       alert("Failed to access camera/mic");
-
       return null;
     }
   };
@@ -122,7 +114,7 @@ export default function Home() {
 
     setAppState("CONNECTING_SIGNALING");
 
-    // cleanup old
+    // cleanup old socket / peer connection
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
@@ -134,15 +126,12 @@ export default function Home() {
     }
 
     const pendingCandidates: RTCIceCandidateInit[] = [];
-
     let isOfferer = false;
 
     const wsUrl = process.env.NEXT_PUBLIC_WS_URL as string;
-
     console.log("WS URL:", wsUrl);
 
     const ws = new WebSocket(wsUrl);
-
     wsRef.current = ws;
 
     const createPC = () => {
@@ -156,7 +145,6 @@ export default function Home() {
 
       localStreamRef.current?.getTracks().forEach((track) => {
         console.log("ADDING TRACK:", track.kind);
-
         pc.addTrack(track, localStreamRef.current!);
       });
 
@@ -171,9 +159,8 @@ export default function Home() {
       };
 
       pc.onicecandidate = (event) => {
-        if (event.candidate) {
+        if (event.candidate && ws.readyState === WebSocket.OPEN) {
           console.log("SENDING ICE");
-
           ws.send(
             JSON.stringify({
               type: "candidate",
@@ -203,13 +190,11 @@ export default function Home() {
       };
 
       pcRef.current = pc;
-
       return pc;
     };
 
     ws.onopen = () => {
       console.log("WS OPEN");
-
       setAppState("WAITING_FOR_PEER");
 
       ws.send(
@@ -223,23 +208,27 @@ export default function Home() {
 
     ws.onmessage = async (event) => {
       const data = JSON.parse(event.data);
-
       console.log("WS MESSAGE:", data);
 
       try {
+        const type = String(data.type || "");
+
         // ROLE
-        if (data.type === "role_assigned") {
+        if (
+          type === "role_assigned" ||
+          type === "role-assigned"
+        ) {
           console.log("ROLE:", data.role);
-
           isOfferer = data.role === "offerer";
-
           createPC();
-
           return;
         }
 
         // PEER JOINED
-        if (data.type === "peer_joined") {
+        if (
+          type === "peer_joined" ||
+          type === "peer-joined"
+        ) {
           console.log("PEER JOINED");
 
           // ONLY offerer creates offer
@@ -253,7 +242,6 @@ export default function Home() {
           setAppState("NEGOTIATING");
 
           const offer = await pc.createOffer();
-
           console.log("CREATED OFFER");
 
           await pc.setLocalDescription(offer);
@@ -269,7 +257,7 @@ export default function Home() {
         }
 
         // OFFER
-        if (data.type === "offer") {
+        if (type === "offer") {
           console.log("RECEIVED OFFER");
 
           const pc = createPC();
@@ -283,7 +271,6 @@ export default function Home() {
           console.log("REMOTE DESCRIPTION SET");
 
           const answer = await pc.createAnswer();
-
           console.log("CREATED ANSWER");
 
           await pc.setLocalDescription(answer);
@@ -297,7 +284,6 @@ export default function Home() {
 
           while (pendingCandidates.length > 0) {
             const candidate = pendingCandidates.shift();
-
             if (candidate) {
               await pc.addIceCandidate(
                 new RTCIceCandidate(candidate)
@@ -309,7 +295,7 @@ export default function Home() {
         }
 
         // ANSWER
-        if (data.type === "answer") {
+        if (type === "answer") {
           console.log("RECEIVED ANSWER");
 
           const pc = pcRef.current;
@@ -327,7 +313,6 @@ export default function Home() {
 
           while (pendingCandidates.length > 0) {
             const candidate = pendingCandidates.shift();
-
             if (candidate) {
               await pc.addIceCandidate(
                 new RTCIceCandidate(candidate)
@@ -339,24 +324,20 @@ export default function Home() {
         }
 
         // ICE
-        if (data.type === "candidate") {
+        if (type === "candidate") {
           console.log("RECEIVED ICE");
 
           const pc = pcRef.current;
 
           if (!pc) {
             console.log("NO PC YET, QUEUE ICE");
-
             pendingCandidates.push(data.candidate);
-
             return;
           }
 
           if (!pc.remoteDescription) {
             console.log("NO REMOTE DESCRIPTION YET, QUEUE ICE");
-
             pendingCandidates.push(data.candidate);
-
             return;
           }
 
@@ -365,12 +346,14 @@ export default function Home() {
           );
 
           console.log("ICE ADDED");
-
           return;
         }
 
         // PEER LEFT
-        if (data.type === "peer_left") {
+        if (
+          type === "peer_left" ||
+          type === "peer-left"
+        ) {
           console.log("PEER LEFT");
 
           setAppState("WAITING_FOR_PEER");
@@ -388,13 +371,10 @@ export default function Home() {
         }
 
         // SERVER ERROR
-        if (data.type === "server_error") {
+        if (type === "server_error") {
           console.log("SERVER ERROR:", data.message);
-
           alert(data.message);
-
           setAppState("ERROR");
-
           return;
         }
       } catch (err) {
@@ -404,7 +384,6 @@ export default function Home() {
 
     ws.onerror = (err) => {
       console.error("WS ERROR:", err);
-
       setAppState("ERROR");
     };
 
@@ -417,7 +396,6 @@ export default function Home() {
     setAppState("DISCONNECTED");
 
     wsRef.current?.close();
-
     pcRef.current?.close();
 
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
@@ -435,24 +413,18 @@ export default function Home() {
   };
 
   const toggleMic = () => {
-    const track = localStreamRef.current
-      ?.getAudioTracks?.()[0];
-
+    const track = localStreamRef.current?.getAudioTracks?.()[0];
     if (!track) return;
 
     track.enabled = !track.enabled;
-
     setMicEnabled(track.enabled);
   };
 
   const toggleVideo = () => {
-    const track = localStreamRef.current
-      ?.getVideoTracks?.()[0];
-
+    const track = localStreamRef.current?.getVideoTracks?.()[0];
     if (!track) return;
 
     track.enabled = !track.enabled;
-
     setVideoEnabled(track.enabled);
   };
 
@@ -466,20 +438,15 @@ export default function Home() {
 
         <p className="mt-4 text-xs md:text-sm tracking-widest text-[#a0a0ff] opacity-80 uppercase flex flex-wrap justify-center items-center gap-2">
           <span>Zero Server Storage</span>
-
           <span className="opacity-50">•</span>
-
           <span>Pure WebRTC</span>
-
           <span className="opacity-50">•</span>
-
           <span>End-to-End P2P</span>
         </p>
       </header>
 
       <div className="w-full max-w-5xl px-4 flex-1 flex flex-col">
-        {appState === "IDLE" ||
-        appState === "DISCONNECTED" ? (
+        {appState === "IDLE" || appState === "DISCONNECTED" ? (
           <div className="flex-1 flex flex-col items-center justify-center border border-[#00d4ff]/20 bg-[#00d4ff]/5 p-8 rounded-2xl backdrop-blur-md max-w-xl mx-auto w-full">
             <ShieldAlert
               size={48}
@@ -531,10 +498,7 @@ export default function Home() {
                 </span>
 
                 {appState === "RECONNECTING" && (
-                  <RefreshCcw
-                    size={12}
-                    className="animate-spin"
-                  />
+                  <RefreshCcw size={12} className="animate-spin" />
                 )}
               </div>
 
@@ -548,7 +512,6 @@ export default function Home() {
             </div>
 
             <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 auto-rows-fr">
-              {/* LOCAL */}
               <div className="relative bg-[#080816] rounded-xl overflow-hidden border border-gray-800 flex items-center justify-center">
                 <div className="absolute top-4 left-4 z-10 bg-black/60 text-xs tracking-wider uppercase px-3 py-1 rounded border border-gray-700 text-gray-300">
                   You
@@ -556,10 +519,7 @@ export default function Home() {
 
                 {!videoEnabled && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-0">
-                    <VideoOff
-                      size={48}
-                      className="text-gray-600"
-                    />
+                    <VideoOff size={48} className="text-gray-600" />
                   </div>
                 )}
 
@@ -570,14 +530,11 @@ export default function Home() {
                   muted
                   className={cn(
                     "w-full h-full object-cover transition-opacity duration-300",
-                    videoEnabled
-                      ? "opacity-100"
-                      : "opacity-0"
+                    videoEnabled ? "opacity-100" : "opacity-0"
                   )}
                 />
               </div>
 
-              {/* REMOTE */}
               <div className="relative bg-[#080816] rounded-xl overflow-hidden border border-[#00d4ff]/30 flex items-center justify-center">
                 <div className="absolute top-4 left-4 z-10 bg-[#00d4ff]/10 text-xs tracking-wider uppercase px-3 py-1 rounded border border-[#00d4ff]/30 text-[#00d4ff]">
                   Remote Node
@@ -605,7 +562,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* CONTROLS */}
             <div className="bg-black/60 border border-gray-800 rounded-xl p-4 flex justify-center gap-6">
               <button
                 onClick={toggleMic}
