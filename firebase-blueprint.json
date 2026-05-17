@@ -1,0 +1,65 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile data",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["email", "createdAt"]
+    },
+    "Room": {
+      "title": "Room",
+      "description": "Multi-user WebRTC Room",
+      "type": "object",
+      "properties": {
+        "createdAt": { "type": "integer" },
+        "hostId": { "type": "string" }
+      },
+      "required": ["createdAt", "hostId"]
+    },
+    "Participant": {
+      "title": "Participant",
+      "description": "A user in the room",
+      "type": "object",
+      "properties": {
+        "joinedAt": { "type": "integer" }
+      },
+      "required": ["joinedAt"]
+    },
+    "Signal": {
+      "title": "Signal",
+      "description": "WebRTC Signaling Message (Offer/Answer/ICE) directed at a specific peer",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "type": { "type": "string" },
+        "data": { "type": "string" },
+        "timestamp": { "type": "integer" }
+      },
+      "required": ["senderId", "receiverId", "type", "data", "timestamp"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores user profiles"
+    },
+    "rooms/{roomId}": {
+      "schema": { "$ref": "#/entities/Room" },
+      "description": "Active Mesh Rooms"
+    },
+    "rooms/{roomId}/participants/{userId}": {
+      "schema": { "$ref": "#/entities/Participant" },
+      "description": "Active participants in the room"
+    },
+    "rooms/{roomId}/signals/{signalId}": {
+      "schema": { "$ref": "#/entities/Signal" },
+      "description": "WebRTC Offers, Answers, and ICE candidates directed between peers"
+    }
+  }
+}

@@ -1,0 +1,62 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Basic helpers
+    function isSignedIn() { return request.auth != null; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == userId 
+                    && incoming().keys().hasAll(['email', 'createdAt'])
+                    && incoming().email is string
+                    && incoming().createdAt == request.time;
+      allow update: if isSignedIn() && request.auth.uid == userId
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['displayName'])
+                    && incoming().displayName is string;
+    }
+
+    match /rooms/{roomId} {
+      allow read: if isSignedIn();
+      // Anyone can create a room
+      allow create: if isSignedIn() && isValidId(roomId)
+                    && incoming().keys().hasAll(['createdAt', 'hostId'])
+                    && incoming().hostId == request.auth.uid
+                    && incoming().createdAt == request.time;
+    }
+
+    match /rooms/{roomId}/participants/{userId} {
+      allow read: if isSignedIn();
+      // User can join a room (add themselves)
+      allow create: if isSignedIn() && request.auth.uid == userId
+                    && incoming().keys().hasAll(['joinedAt']);
+      allow delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /rooms/{roomId}/signals/{signalId} {
+      // Signals are targeted messages between peers
+      allow read: if isSignedIn() && existing().receiverId == request.auth.uid;
+      
+      allow create: if isSignedIn() && isValidId(signalId)
+                    && incoming().keys().hasAll(['senderId', 'receiverId', 'type', 'data', 'timestamp'])
+                    && incoming().senderId == request.auth.uid;
+    }
+
+    match /calls/{callId}/chat/{chatId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+    }
+    match /rooms/{roomId}/chat/{chatId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+    }
+  }
+}
+
