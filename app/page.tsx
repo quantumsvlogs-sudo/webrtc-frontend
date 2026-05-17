@@ -11,6 +11,7 @@ const joinRoom = async () => {
     setAppState("ERROR");
     return;
   }
+  
 
   setAppState("CONNECTING_SIGNALING");
 
